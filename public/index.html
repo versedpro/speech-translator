@@ -1,0 +1,68 @@
+<html>
+    <head></head>
+    <script>
+        function btnClick() {
+            const queryDict = {};
+            window.location.search.substr(1).split("&").forEach((item) => {
+                queryDict[item.split("=")[0]] = item.split("=")[1]
+            });
+
+            if(queryDict.ssrc==null) {
+                document.getElementById("btn").disabled = true;
+                document.getElementById("btn").innerText = "Wrong SSRC in URL";
+                return;
+            }
+
+            let audioIsPlaying = false;
+            const audioBuffer = [];
+            console.log("Document load");
+            const ws = new WebSocket("ws://127.0.0.1:4000/"+queryDict.ssrc);
+            ws.onopen = () => {
+                console.log("WS connected");
+                document.getElementById("btn").innerText = "Connected";
+            };
+
+            ws.onclose = () => {
+                console.log("WS disconnected");
+                document.getElementById("btn").innerText = "Start";
+                document.getElementById("btn").disabled = false;
+            };
+
+            function playAudio(sound) {
+                if(audioIsPlaying) {
+                    audioBuffer.push(sound);
+                } else {
+                    const audio = new Audio("data:audio/mpeg;base64,"+sound);
+                    audioIsPlaying = true;
+                    console.log("Audio started playing");
+                    audio.onended = () => {
+                        console.log("Audio stopped playing");
+                        audioIsPlaying = false;
+                        if(audioBuffer.length>0) {
+                            playAudio(audioBuffer[0]);
+                            audioBuffer.splice(0, 1);
+                        }
+                    };
+                    audio.play();
+                }
+            }
+
+            ws.onmessage = (msg) => {
+                console.log(msg.data);
+                const obj = JSON.parse(msg.data);
+                document.getElementById("messages").innerHTML += "<div>"+obj.original+"<br><b>"+obj.text+"</b></div>";
+                playAudio(obj.sound);
+            };
+
+            document.getElementById("btn").disabled = true;
+            document.getElementById("btn").innerText = "Connecting...";
+        }
+    </script>
+    <body>
+        <button id="btn" onclick="btnClick();">Start</button>
+        <b>Messages:</b><br>
+        <div id="messages">
+
+        </div>
+    </body>
+</html>
