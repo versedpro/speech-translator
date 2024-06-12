@@ -13,8 +13,15 @@ const server = new RtpServer();
 server.eventEmitter.on("connect", (ssrc) => {
     console.log("Connected new SSRC: ", ssrc);
     translations[""+ssrc] = new Translator(ssrc);
-    translations[""+ssrc].eventEmitter.on("translation", (obj) => {
-        streamingServer.sendToAll(ssrc, obj);
+    translations[""+ssrc].eventEmitter.on('audioDictated', (dictatedText) => {
+        const targetLangs = streamingServer.getAllLangesForSSRC(ssrc)
+        for (const lang of targetLangs) {
+            translations[""+ssrc].translateInTargetLang(dictatedText, lang)
+        }
+        console.log('target langs: ', targetLangs)
+    })
+    translations[""+ssrc].eventEmitter.on("translation", (targetLang, obj) => {
+        streamingServer.sendToSameLanguageListner(ssrc, targetLang, obj);
     });
 });
 server.eventEmitter.on("data", (buff, ssrc) => {

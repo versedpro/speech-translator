@@ -1,11 +1,12 @@
 const express = require('express');
-
+const url = require('url');
 const ws = require('ws');
 
 class StreamingServer {
 
     constructor(port) {
         this.pipes = [];
+        this.listenerStatics = {}; // store how many listners are live for ssrc/lang pair
         const app = express();
 
         let i = 0;
@@ -23,22 +24,31 @@ class StreamingServer {
             socket.on('message', message => {
             });
 
+            const parameters = url.parse(request.url, true).query;
+
             const arr = request.url.split("/");
             let ssrc = 0;
-            if(arr.length>0) ssrc = parseInt(arr[arr.length-1]);
-
+            ssrc = parameters.ssrc;
+            const language = parameters.language;
             console.log("WS conencted fror SSRC: ", ssrc);
-
+            console.log('language: ', language)
+            this.onListnerConnect(ssrc, language)
+            console.log('statistic: ', this.listenerStatics)
             const currI = i;
             socket.on("close", () => {
                 console.log("Socket closed");
+                this.onListenerDisconnect(ssrc, language)
+                console.log('statistic: ', this.listenerStatics)
                 delete this.pipes[""+ssrc][""+currI];
             });
 
             if(this.pipes[""+ssrc]==null) {
                 this.pipes[""+ssrc] = {};
             }
-            this.pipes[""+ssrc][""+i] = socket;
+            this.pipes[""+ssrc][""+i] = {
+                socket: socket,
+                targetLang: language,
+            };
             i++;
         });
 
@@ -49,9 +59,39 @@ class StreamingServer {
         });
     }
 
+    onListnerConnect(ssrc, lang) {
+        if(this.listenerStatics['' + ssrc] == null) {
+            this.listenerStatics['' + ssrc] = {}
+        }
+        if (this.listenerStatics['' + ssrc][lang] == null) {
+            this.listenerStatics['' + ssrc][lang] = 0
+        }
+        this.listenerStatics['' + ssrc][lang] ++; 
+    }
+
+    onListenerDisconnect(ssrc, lang) {
+        if(this.listenerStatics['' + ssrc] == null || this.listenerStatics['' + ssrc][lang] == null) return
+        this.listenerStatics['' + ssrc][lang] --;
+        if (this.listenerStatics['' + ssrc][lang] == 0 ) delete this.listenerStatics['' + ssrc][lang]; 
+    }
+
+    getAllLangesForSSRC(ssrc) {
+        /** return list of language code of listeners connected to the ssrc */
+        if (this.listenerStatics['' + ssrc] == null) return []
+        return Object.keys(this.listenerStatics['' + ssrc])
+    }
+
     sendToAll(ssrc, obj) {
         for(let pipeId in this.pipes[""+ssrc]) {
-            this.pipes[""+ssrc][pipeId].send(JSON.stringify(obj));
+            this.pipes[""+ssrc][pipeId].socket.send(JSON.stringify(obj));
+        }
+    }
+
+    sendToSameLanguageListner(ssrc, lang, obj) {
+        for(let pipeId in this.pipes[""+ssrc]) {
+            if(this.pipes[""+ssrc][pipeId].targetLang == lang) {
+                this.pipes[""+ssrc][pipeId].socket.send(JSON.stringify(obj));
+            }
         }
     }
 
