@@ -3,9 +3,9 @@ const StreamingServer = require("./httpStreamingServer");
 const RtpServer = require("./rtpServer");
 const Translator = require("./translator");
 
-const streamPort = 5004;
+const streamPort = 5005;
 
-const streamingServer = new StreamingServer(4000);
+const streamingServer = new StreamingServer(4001);
 
 const translations = {};
 
