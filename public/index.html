@@ -52,7 +52,7 @@
             }
 
             ws.onmessage = (msg) => {
-                console.log(msg.data);
+                // console.log(msg.data);
                 const obj = JSON.parse(msg.data);
                 document.getElementById("messages").innerHTML += "<div>"+obj.original+"<br><b>"+obj.text+"</b></div>";
                 playAudio(obj.sound);

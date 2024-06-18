@@ -1,12 +1,19 @@
 // Example filename: index.js
 
 const { createClient, LiveTranscriptionEvents } = require("@deepgram/sdk");
+const EventEmitter = require("events");
 
-class DeepgramConnection {
+const EVENTS = {
+  'SPEECH_RECOGNIZED': 'SPEECH_RECOGNIZED',
+}
+
+class DeepgramAgent {
   constructor(apiKey = process.env.DEEPGRAM_API_KEY) {
     this.deepgramClient = createClient(apiKey);
     this.isConnectionOpen = false;
     this.connection = null;
+    this.eventEmitter = new EventEmitter();
+    this.temp = null;   // store previous result if it is not speech_final
     this.createConnection()
   }
 
@@ -27,7 +34,18 @@ class DeepgramConnection {
       });
   
       this.connection.on(LiveTranscriptionEvents.Transcript, (data) => {
-        console.log(data.channel.alternatives[0].transcript);
+        // console.log('deepgram: ', data.speech_final, data.channel.alternatives[0].transcript)
+        // if (data.speech_final == true) {
+        //   if (this.temp == null) this.eventEmitter.emit(EVENTS.SPEECH_RECOGNIZED, {'text': data.channel.alternatives[0].transcript})
+        //   else {
+        //     this.eventEmitter.emit(EVENTS.SPEECH_RECOGNIZED, {'text': `${this.temp} ${data.channel.alternatives[0].transcript}`})
+        //     this.temp = null
+        //   }
+        // } else {
+        //   if (this.temp == null) this.temp = data.channel.alternatives[0].transcript
+        //   else this.temp = `${this.temp} ${data.channel.alternatives[0].transcript}`
+        // }
+        this.eventEmitter.emit(EVENTS.SPEECH_RECOGNIZED, {'text': data.channel.alternatives[0].transcript})
       });
   
       this.connection.on(LiveTranscriptionEvents.Metadata, (data) => {
@@ -51,4 +69,7 @@ class DeepgramConnection {
   }
 }
 
-module.exports = DeepgramConnection;
+module.exports = {
+  DeepgramAgent,
+  EVENTS,
+}
