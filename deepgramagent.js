@@ -2,44 +2,53 @@
 
 const { createClient, LiveTranscriptionEvents } = require("@deepgram/sdk");
 
-const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
-const connection = deepgram.listen.live({
-  model: "nova-2",
-  language: "en-US",
-  smart_format: true,
-  encoding: "linear16",
-  sample_rate:44100,
-  // punctuate: 'sentence',
-});
+class DeepgramConnection {
+  constructor(apiKey = process.env.DEEPGRAM_API_KEY) {
+    this.deepgramClient = createClient(apiKey);
+    this.isConnectionOpen = false;
+    this.connection = null;
+    this.createConnection()
+  }
 
+  createConnection() {
+    this.connection = this.deepgramClient.listen.live({
+      model: "nova-2",
+      language: "en-US",
+      smart_format: true,
+      encoding: "linear16",
+      sample_rate: 44100,
+    });
 
-connection.on(LiveTranscriptionEvents.Open, () => {
-  console.log('connection opened')
-  connection.on(LiveTranscriptionEvents.Close, () => {
-    console.log("Connection closed.");
-  });
+    this.connection.on(LiveTranscriptionEvents.Open, () => {
+      console.log('Connection opened.');
+      this.isConnectionOpen = true;
+      this.connection.on(LiveTranscriptionEvents.Close, () => {
+        this.isConnectionOpen = false;
+      });
+  
+      this.connection.on(LiveTranscriptionEvents.Transcript, (data) => {
+        console.log(data.channel.alternatives[0].transcript);
+      });
+  
+      this.connection.on(LiveTranscriptionEvents.Metadata, (data) => {
+        console.log(data);
+      });
+  
+      this.connection.on(LiveTranscriptionEvents.Error, (err) => {
+        console.error(err);
+      });
+    });
+  }
 
-  connection.on(LiveTranscriptionEvents.Transcript, (data) => {
-    console.log(data.channel.alternatives[0].transcript);
-    console.log(data)
-  });
+  checkConnectionStatus() {
+    return this.isConnectionOpen;
+  }
 
-  connection.on(LiveTranscriptionEvents.Metadata, (data) => {
-    console.log(data);
-  });
+  send(buff) {
+    if(this.isConnectionOpen) {
+      this.connection.send(buff)
+    }
+  }
+}
 
-  connection.on(LiveTranscriptionEvents.Error, (err) => {
-    console.error(err);
-  });
-
-  // STEP 4: Fetch the audio stream and send it to the live transcription connection
-  // fetch(url)
-  //   .then((r) => r.body)
-  //   .then((res) => {
-  //     res.on("readable", () => {
-  //       connection.send(res.read());
-  //     });
-  //   });
-});
-
-module.exports = connection;
+module.exports = DeepgramConnection;

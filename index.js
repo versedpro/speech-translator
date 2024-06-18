@@ -5,17 +5,19 @@ dotenv.config();
 const StreamingServer = require("./httpStreamingServer");
 const RtpServer = require("./rtpServer");
 const Translator = require("./translator");
-const DEEPGRAM_AGENT = require("./deepgramagent")
+const DeepgramConnection = require("./deepgramagent")
 
 const streamPort = 5005;
 
 const streamingServer = new StreamingServer(4001);
 
 const translations = {};
+const s2t_agents = {};
 
 const server = new RtpServer();
 server.eventEmitter.on("connect", (ssrc) => {
     console.log("Connected new SSRC: ", ssrc);
+    s2t_agents[ssrc.toString()] = new DeepgramConnection()
     translations[""+ssrc] = new Translator(ssrc);
     translations[""+ssrc].eventEmitter.on('audioDictated', (dictatedText) => {
         const targetLangs = streamingServer.getAllLangesForSSRC(ssrc)
@@ -38,9 +40,9 @@ server.eventEmitter.on("data", (buff, ssrc) => {
     //     translations[""+ssrc].endStream()
     // }
     try {
-        DEEPGRAM_AGENT.send(buff)    
+        s2t_agents[ssrc.toString()].send(buff)    
     } catch (error) {
-        // console.log('error: ', error)   
+        console.log('error: ', error)   
     }
 });
 server.eventEmitter.on("disconnect", (ssrc) => {
