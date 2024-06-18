@@ -1,7 +1,11 @@
 // Imports the Google Cloud client library
+const dotenv = require("dotenv");
+dotenv.config();
+
 const StreamingServer = require("./httpStreamingServer");
 const RtpServer = require("./rtpServer");
 const Translator = require("./translator");
+const DEEPGRAM_AGENT = require("./deepgramagent")
 
 const streamPort = 5005;
 
@@ -25,13 +29,18 @@ server.eventEmitter.on("connect", (ssrc) => {
     });
 });
 server.eventEmitter.on("data", (buff, ssrc) => {
-    if (
-        streamingServer.pipes[ssrc] != undefined && 
-        Object.keys(streamingServer.pipes[ssrc]).length > 0
-    ) {
-        translations[""+ssrc].send(buff);
-    } else {
-        translations[""+ssrc].endStream()
+    // if (
+    //     streamingServer.pipes[ssrc] != undefined && 
+    //     Object.keys(streamingServer.pipes[ssrc]).length > 0
+    // ) {
+    //     translations[""+ssrc].send(buff);
+    // } else {
+    //     translations[""+ssrc].endStream()
+    // }
+    try {
+        DEEPGRAM_AGENT.send(buff)    
+    } catch (error) {
+        // console.log('error: ', error)   
     }
 });
 server.eventEmitter.on("disconnect", (ssrc) => {
