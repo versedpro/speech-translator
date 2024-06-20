@@ -1,4 +1,5 @@
 const EventEmitter = require("events");
+const asyncModule = require('async');
 const {DeepgramAgent, EVENTS: DeepgramAgentEvents} = require("./deepgramagent")
 const DeeplTransAgent = require("./DeeplTransAgent")
 const T2SAgent = require("./T2SAgent")
@@ -16,59 +17,63 @@ class RickyAgency {
     this.ssrc = ssrc
     this.eventEmitter = new EventEmitter()
     this.s2t_agent = new DeepgramAgent()
-    this.sentence_queue = [] // array of recognized sentences
+    // this.sentence_queue = [] // array of recognized sentences
     this.is_running = true
     this.t2s_agent = new T2SAgent()
+
+    // queue for transaction & T2S
+    this.process_queue = asyncModule.queue((task, completed) => {
+      try {
+        let s = task.text.trim()
+        if (s == "") {throw new Error('Empty String')}
+        
+        
+        DeeplTransAgent.translateTo(s, 'es')
+          .then(res => {
+            if (res.statusCode!==200) {
+              throw new Error('Trans failed')
+            }
+            return res.body.translations[0].text;
+          })
+          .then(translatedTxt => {
+            return this.t2s_agent.generateAudio(translatedTxt)
+              .then(res => ({ translatedTxt, audio: res[0].audioContent.toString("base64") }));
+          })
+          .then(({ translatedTxt, audio }) => {
+            const obj = {
+              original: s,
+              text: translatedTxt,
+              sound: audio
+            };
+            completed(null, obj);
+          })
+          .catch(err => {
+            completed(err, null);
+          })
+      } catch (error) {
+        console.log('catch worked')
+        completed(error, null);
+      }
+      
+    }, 1);
+
     // connect events
     this.s2t_agent.eventEmitter.on(DeepgramAgentEvents.SPEECH_RECOGNIZED, (data) => {
-      this.sentence_queue.push(data.text)
+      this.process_queue.push({text: data.text}, (err, obj) => {
+        if (err == null) {
+          console.log('original: ', obj.original)
+          console.log('trans: ', obj.text)
+          this.eventEmitter.emit(EVENTS.PROCESS_COMPLETED, obj);
+        }
+        else {
+          console.log('process err:', err)
+        }
+      })
     })
-    // start loop
-    this._processQueue()
   }
 
   sendSpeechData(buff) {
     this.s2t_agent.send(buff)
-  }
-
-  async _processQueue() {
-    while (this.is_running) {
-      if (this.sentence_queue.length == 0){
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for 2 seconds
-      }
-      else {
-        try {
-          let s = this.sentence_queue.shift(); // pop queue
-          s = s.trim()
-          if (s == "") continue
-
-          // TODO: Translate
-          let responseTranslate = await DeeplTransAgent.translateTo(s, 'es')
-          if(responseTranslate.statusCode!==200) {
-            console.log(responseTranslate.body);
-            continue;
-          }
-    
-          let translation = responseTranslate.body.translations[0].text;
-          console.log('original: ', s)
-          console.log('trans: ', translation)
-          console.log('\n')
-          
-          // TODO: Generate Audio
-          let res = await this.t2s_agent.generateAudio(translation)
-
-          const obj = {
-            original: s,
-            text: translation,
-            sound: res[0].audioContent.toString("base64")
-          };
-
-          this.eventEmitter.emit(EVENTS.PROCESS_COMPLETED, obj);
-        } catch (error) {
-         console.log('process_queue: ', error) 
-        }
-      }
-    }
   }
 }
 
