@@ -1,7 +1,8 @@
 const textToSpeech = require('@google-cloud/text-to-speech');
 
 class T2SAgent {
-  constructor() {
+  constructor(target_lang = 'es') {
+    this.target_lang = target_lang;
     this.clientSynthesize = new textToSpeech.TextToSpeechClient();
   }
 

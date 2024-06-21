@@ -21,55 +21,84 @@ class RickyAgency {
     this.is_running = true
     this.t2s_agent = new T2SAgent()
 
-    // queue for transaction & T2S
-    this.process_queue = asyncModule.queue((task, completed) => {
-      try {
-        let s = task.text.trim()
-        if (s == "") {throw new Error('Empty String')}
-        
-        
-        DeeplTransAgent.translateTo(s, 'es')
-          .then(res => {
-            if (res.statusCode!==200) {
-              throw new Error('Trans failed')
-            }
-            return res.body.translations[0].text;
-          })
-          .then(translatedTxt => {
-            return this.t2s_agent.generateAudio(translatedTxt)
-              .then(res => ({ translatedTxt, audio: res[0].audioContent.toString("base64") }));
-          })
-          .then(({ translatedTxt, audio }) => {
-            const obj = {
-              original: s,
-              text: translatedTxt,
-              sound: audio
-            };
-            completed(null, obj);
-          })
-          .catch(err => {
-            completed(err, null);
-          })
-      } catch (error) {
-        console.log('catch worked')
-        completed(error, null);
-      }
-      
-    }, 1);
+    this.listenerStatic = {} // lang-num key pair of listners
+    this.process_queues = {} // lang - async task queue key pair
 
     // connect events
     this.s2t_agent.eventEmitter.on(DeepgramAgentEvents.SPEECH_RECOGNIZED, (data) => {
-      this.process_queue.push({text: data.text}, (err, obj) => {
-        if (err == null) {
-          console.log('original: ', obj.original)
-          console.log('trans: ', obj.text)
-          this.eventEmitter.emit(EVENTS.PROCESS_COMPLETED, obj);
-        }
-        else {
-          console.log('process err:', err)
-        }
-      })
+      // add a task to all existing queues for different lang
+      for (const lang in this.process_queues) {
+        console.log('lang: ', lang)
+        this.process_queues[lang].push({text: data.text}, (err, obj) => {
+          if (err == null) {
+            console.log('original: ', obj.original)
+            console.log('trans: ', obj.text)
+            this.eventEmitter.emit(EVENTS.PROCESS_COMPLETED, lang ,obj);
+          }
+          else {
+            console.log('process err:', err)
+          }
+        })
+      }
     })
+  }
+
+  addListner(listners_lang) {
+    if (this.listenerStatic.hasOwnProperty(listners_lang)) {
+      this.listenerStatic[listners_lang] += 1
+    } else {
+      this.listenerStatic[listners_lang] = 0
+      this.process_queues[listners_lang] = asyncModule.queue((task, completed) => {
+        try {
+          let s = task.text.trim()
+          if (s == "") {throw new Error('Empty String')}
+          
+          
+          DeeplTransAgent.translateTo(s, listners_lang)
+            .then(res => {
+              if (res.statusCode!==200) {
+                throw new Error('Trans failed')
+              }
+              return res.body.translations[0].text;
+            })
+            .then(translatedTxt => {
+              return this.t2s_agent.generateAudio(translatedTxt, listners_lang)
+                .then(res => ({ translatedTxt, audio: res[0].audioContent.toString("base64") }));
+            })
+            .then(({ translatedTxt, audio }) => {
+              const obj = {
+                original: s,
+                text: translatedTxt,
+                sound: audio
+              };
+              completed(null, obj);
+            })
+            .catch(err => {
+              completed(err, null);
+            })
+        } catch (error) {
+          console.log('catch worked')
+          completed(error, null);
+        }
+        
+      }, 1);
+    }
+
+
+  }
+
+  removeListner(listners_lang) {
+    if (this.listenerStatic.hasOwnProperty(listners_lang)) {
+      this.listenerStatic[listners_lang] -= 1;
+      
+      // if all listeners for a specific lang were removed, 
+      // then kill the task queue
+      if (this.listenerStatic[listners_lang] < 1) {
+        this.process_queues[listners_lang].kill()
+        delete this.process_queues[listners_lang]
+        delete this.listenerStatic[listners_lang]
+      }
+    }
   }
 
   sendSpeechData(buff) {

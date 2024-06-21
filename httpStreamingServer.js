@@ -1,10 +1,17 @@
+const EventEmitter = require("events");
 const express = require('express');
 const url = require('url');
 const ws = require('ws');
 
+const EVENTS = {
+    'LISTENER_CONNECTED': 'LISTENER_CONNECTED',
+    'LISTENER_DISCONNECTED': 'LISTENER_DISCONNECTED',
+}
+
 class StreamingServer {
 
     constructor(port) {
+        this.eventEmitter = new EventEmitter()
         this.pipes = [];
         this.listenerStatics = {}; // store how many listners are live for ssrc/lang pair
         const app = express();
@@ -33,11 +40,20 @@ class StreamingServer {
             console.log("WS conencted fror SSRC: ", ssrc);
             console.log('language: ', language)
             this.onListnerConnect(ssrc, language)
+            this.eventEmitter.emit(EVENTS.LISTENER_CONNECTED, {
+                ssrc,
+                listener_lang: language, 
+            });
+
             console.log('statistic: ', this.listenerStatics)
             const currI = i;
             socket.on("close", () => {
                 console.log("Socket closed");
                 this.onListenerDisconnect(ssrc, language)
+                this.eventEmitter.emit(EVENTS.LISTENER_DISCONNECTED, {
+                    ssrc,
+                    listener_lang: language, 
+                });
                 console.log('statistic: ', this.listenerStatics)
                 delete this.pipes[""+ssrc][""+currI];
             });
@@ -97,4 +113,7 @@ class StreamingServer {
 
 }
 
-module.exports = StreamingServer;
+module.exports = {
+    StreamingServer,
+    EVENTS,
+};
