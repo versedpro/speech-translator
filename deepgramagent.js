@@ -22,8 +22,8 @@ class DeepgramAgent {
       model: "nova-2",
       language: "en-US",
       smart_format: true,
-      encoding: "linear16",
-      sample_rate: 44100,
+      encoding: "mulaw",
+      sample_rate: 24000,
     });
 
     this.connection.on(LiveTranscriptionEvents.Open, () => {
