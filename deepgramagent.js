@@ -14,10 +14,13 @@ class DeepgramAgent {
     this.connection = null;
     this.eventEmitter = new EventEmitter();
     this.temp = null;   // store previous result if it is not speech_final
-    this.createConnection()
+    this.isConnecting = false; // indicate if DeepgramAgen is trying to connect
+    // this.createConnection()
   }
 
   createConnection() {
+    if (this.connection != null) delete this.connection
+    this.isConnecting = true;
     this.connection = this.deepgramClient.listen.live({
       model: "nova-2",
       language: "en-US",
@@ -28,8 +31,8 @@ class DeepgramAgent {
 
     this.connection.on(LiveTranscriptionEvents.Open, () => {
       console.log('Connection opened.');
-      this.isConnectionOpen = true;
       this.connection.on(LiveTranscriptionEvents.Close, () => {
+        console.log('Connection closed.');
         this.isConnectionOpen = false;
       });
   
@@ -55,6 +58,9 @@ class DeepgramAgent {
       this.connection.on(LiveTranscriptionEvents.Error, (err) => {
         console.error(err);
       });
+
+      this.isConnectionOpen = true;
+      this.isConnecting = false;
     });
   }
 
@@ -65,6 +71,9 @@ class DeepgramAgent {
   send(buff) {
     if(this.isConnectionOpen) {
       this.connection.send(buff)
+    }
+    if (!this.isConnecting && !this.isConnectionOpen) {
+      this.createConnection()
     }
   }
 }

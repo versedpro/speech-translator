@@ -102,7 +102,15 @@ class RickyAgency {
   }
 
   sendSpeechData(buff) {
-    this.s2t_agent.send(buff)
+    // check if there is any listener
+    if (this.hasAnyListener()) {
+      this.s2t_agent.send(buff)
+    }
+    // console.log('s2t_state: ', this.s2t_agent.isConnectionOpen)
+  }
+
+  hasAnyListener() {
+    return Object.keys(this.listenerStatic).length > 0
   }
 }
 
