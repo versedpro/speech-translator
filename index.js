@@ -20,20 +20,30 @@ const server = new RtpServer();
 console.log('service-responder: ', process.env.SERVICE_RESPONDER_URL)
 server.eventEmitter.on("connect", (ssrc) => {
     // check if coming ssrc is registered on service responder
-    axios.post(`http://127.0.0.1:3000/api/service/check-ssrc`, {
-        "ssrc": ssrc
-    }).then(res => {
-        s2t_agents[ssrc.toString()] = new RickyAgency(ssrc)
-        s2t_agents[ssrc.toString()].eventEmitter.on(RickyAgencyEvents.PROCESS_COMPLETED, (lang, obj) => {
-            // streamingServer.sendToAll(ssrc, obj);
-            streamingServer.sendToSameLanguageListner(ssrc, lang, obj)
+    console.log('coming ssrc: ', ssrc)
+    if (process.env.IS_SERVICE_RESPONDER_ACTIVE == 1) {
+        axios.post(`${process.env.SERVICE_RESPONDER_URL}/api/service/check-ssrc`, {
+            "ssrc": ssrc
+        }).then(res => {
+            composeAgencyForSSRC(ssrc)
+        }).catch(err => {
+            console.log('failed with: ', err.code)
+            console.log(err)
         })
-        console.log("Connected new SSRC: ", ssrc);
-    }).catch(err => {
-        console.log('failed with: ', err.code)
-    })
-    
+    } else {
+        composeAgencyForSSRC(ssrc)
+    }
 });
+
+const composeAgencyForSSRC = (ssrc) => {
+    s2t_agents[ssrc.toString()] = new RickyAgency(ssrc)
+    s2t_agents[ssrc.toString()].eventEmitter.on(RickyAgencyEvents.PROCESS_COMPLETED, (lang, obj) => {
+        // streamingServer.sendToAll(ssrc, obj);
+        streamingServer.sendToSameLanguageListner(ssrc, lang, obj)
+    })
+    console.log("Connected new SSRC: ", ssrc);
+}
+
 server.eventEmitter.on("data", (buff, ssrc) => {
     // if (
     //     streamingServer.pipes[ssrc] != undefined && 
