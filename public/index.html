@@ -11,12 +11,16 @@
                 document.getElementById("btn").disabled = true;
                 document.getElementById("btn").innerText = "Wrong SSRC in URL";
                 return;
+            } 
+
+            if (queryDict.lang == null) {
+                queryDict.lang = 'es'  // default target lang is spanish
             }
 
             let audioIsPlaying = false;
             const audioBuffer = [];
             console.log("Document load");
-            const ws = new WebSocket("ws://127.0.0.1:4000/"+queryDict.ssrc);
+            const ws = new WebSocket(`ws://127.0.0.1:4001/?ssrc=${queryDict.ssrc}&language=${queryDict.lang}`);
             ws.onopen = () => {
                 console.log("WS connected");
                 document.getElementById("btn").innerText = "Connected";
@@ -48,7 +52,7 @@
             }
 
             ws.onmessage = (msg) => {
-                console.log(msg.data);
+                // console.log(msg.data);
                 const obj = JSON.parse(msg.data);
                 document.getElementById("messages").innerHTML += "<div>"+obj.original+"<br><b>"+obj.text+"</b></div>";
                 playAudio(obj.sound);

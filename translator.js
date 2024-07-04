@@ -71,7 +71,10 @@ class Translator {
             simple: false
 	    });
 
-	    if(cpyTranslateId!==this.translateId) return;
+	    if(cpyTranslateId!==this.translateId) {
+			console.log('translated data skip: ')
+			return;
+		}
 
 	    if(responseTranslate.statusCode!==200) {
 	    	console.log(responseTranslate.body);
@@ -173,7 +176,7 @@ class Translator {
 	    const response = await this.clientSynthesize.synthesizeSpeech(request);
 	    // Write the binary audio content to a local file
 
-	    console.log("Audio content: ", response);
+	    // console.log("Audio content: ", response);
 
 	    const obj = {
 	        original: text,
@@ -181,7 +184,110 @@ class Translator {
 	        sound: response[0].audioContent.toString("base64")
 	    };
 
-        this.eventEmitter.emit("translation", obj);
+        this.eventEmitter.emit("translation", LANGUAGE_TO, obj);
+		// this.eventEmitter.emit('translationInSpecificLang', )
+	}
+
+	async translateInTargetLang(text, target_lang, context = {}) {
+	    // Run request
+	    //const [responseTranslate] = await this.translationClient.translateText(requestTranslate);
+		console.log('param-target_lang: ', target_lang)
+	    const responseTranslate = await requestPromise({
+            method: 'POST',
+            uri: "https://api-free.deepl.com/v2/translate",
+            headers: {
+            	"Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: "auth_key="+DEEPL_API_KEY+"&text="+text+"&target_lang="+target_lang,
+            json: true,
+            resolveWithFullResponse: true,
+            simple: false
+	    });
+
+
+	    if(responseTranslate.statusCode!==200) {
+	    	console.log(responseTranslate.body);
+	    	return;
+	    }
+
+	    let translation = responseTranslate.body.translations[0].text;
+
+	    console.log("Original text: ", text);
+	    console.log("Original translation: ", translation);
+
+	    let words = translation.split(" ");
+
+	    if(context.offset!=null) {
+	        words = words.slice(context.offset);
+	    }
+
+	    if(context.words==null) {
+	        context.words = [];
+	        for(let word of words) {
+	            context.words.push({
+	                word,
+	                confirmations: 1
+	            });
+	        }
+	    } else {
+	        const newWords = [];
+	        let pointer = 0;
+	        for(let i=0;i<words.length;i++) {
+	            if(context.words[i]==null || context.words[i].word!==words[i]) {
+	                //Not good
+	                break;
+	            } else {
+	                context.words[i].confirmations++;
+	                pointer++;
+	                newWords.push(context.words[i]);
+	            }
+	        }
+	        for(let e=pointer;e<words.length;e++) {
+	            newWords.push({
+	                word: words[e],
+	                confirmations: 1
+	            });
+	        }
+	        context.words = newWords;
+	    }
+
+		const sayWords = [];
+		for(let wordObj of context.words) {
+			sayWords.push(wordObj.word);
+		}
+		translation = sayWords.join(" ");
+
+	    console.log("Translation words: ", context.words);
+
+
+	    console.log("Say text: ", translation);
+
+	    // Construct the request
+	    const request = {
+	        input: {text: translation},
+	        // Select the language and SSML voice gender (optional)
+	        voice: {languageCode: target_lang, ssmlGender: 'NEUTRAL'},
+	        enableTimePointing: [],
+	        // select the type of audio encoding
+	        audioConfig: {
+	            audioEncoding: 'MP3',
+	            sampleRateHertz: 24000
+	        },
+	    };
+
+	    // Performs the text-to-speech request
+	    const response = await this.clientSynthesize.synthesizeSpeech(request);
+	    // Write the binary audio content to a local file
+
+	    // console.log("Audio content: ", response);
+
+	    const obj = {
+	        original: text,
+	        text: translation,
+	        sound: response[0].audioContent.toString("base64")
+	    };
+
+        this.eventEmitter.emit("translation", target_lang, obj);
 	}
 
 	resetRecognizeStream() {
@@ -217,7 +323,8 @@ class Translator {
 	                )*/
 	                if(data.results[0] && data.results[0].isFinal &&  data.results[0].alternatives[0]) {
 	                    console.log("Translation data: ", data);
-	                    this.recognized(data.results[0].alternatives[0].transcript, true, context);
+						this.eventEmitter.emit('audioDictated', data.results[0].alternatives[0].transcript)
+	                    // this.recognized(data.results[0].alternatives[0].transcript, true, context);
 	                    /*lastTranslation = null;
 	                    recognizeStream.end();
 	                    resetRecognizeStream();*/
