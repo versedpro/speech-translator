@@ -17,8 +17,6 @@ class RickyAgency {
     this.ssrc = ssrc;
     this.eventEmitter = new EventEmitter();
     this.s2t_agent = new DeepgramAgent();
-    // this.sentence_queue = [] // array of recognized sentences
-    this.is_running = true;
     this.t2s_agent = new T2SAgent();
 
     this.listenerStatic = {}; // lang-num key pair of listners
@@ -75,24 +73,7 @@ class RickyAgency {
                 }
               }
             );
-            // return res.body.translations[0].text;
           });
-          // .then((translatedTxt) => {
-          //   return this.t2s_agent
-          //     .generateAudio(translatedTxt, listners_lang)
-          //     .then((res) => ({ translatedTxt, audio: res[0].audioContent.toString("base64") }));
-          // })
-          // .then(({ translatedTxt, audio }) => {
-          //   const obj = {
-          //     original: s,
-          //     text: translatedTxt,
-          //     sound: audio,
-          //   };
-          //   completed(null, obj);
-          // })
-          // .catch((err) => {
-          //   completed(err, null);
-          // });
         } catch (error) {
           console.log("catch worked");
           t2tCompleted(error, null);
@@ -108,9 +89,9 @@ class RickyAgency {
           this.t2s_agent
             .generateAudio(task.text, listners_lang)
             .then((res) => {
-              // if (res.statusCode !== 200) {
-              //   throw new Error("T2S failed");
-              // }
+              if (!res[0].audioContent) {
+                throw new Error("T2S failed");
+              }
               const obj = {
                 original: task.original,
                 text: task.text,
