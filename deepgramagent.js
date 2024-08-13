@@ -1,25 +1,24 @@
 // Example filename: index.js
 
-const { createClient, LiveTranscriptionEvents } = require("@deepgram/sdk");
-const EventEmitter = require("events");
+import { createClient, LiveTranscriptionEvents } from "@deepgram/sdk";
+import EventEmitter from "events";
+import { DEEPGRAM_API_KEY, S2T_EVENTS } from "./helper.js";
 
-const EVENTS = {
-  'SPEECH_RECOGNIZED': 'SPEECH_RECOGNIZED',
-}
+const EVENTS = S2T_EVENTS;
 
 class DeepgramAgent {
-  constructor(apiKey = process.env.DEEPGRAM_API_KEY) {
+  constructor(apiKey = DEEPGRAM_API_KEY) {
     this.deepgramClient = createClient(apiKey);
     this.isConnectionOpen = false;
     this.connection = null;
     this.eventEmitter = new EventEmitter();
-    this.temp = null;   // store previous result if it is not speech_final
+    this.temp = null; // store previous result if it is not speech_final
     this.isConnecting = false; // indicate if DeepgramAgen is trying to connect
     // this.createConnection()
   }
 
   createConnection() {
-    if (this.connection != null) delete this.connection
+    if (this.connection != null) delete this.connection;
     this.isConnecting = true;
     this.connection = this.deepgramClient.listen.live({
       model: "nova-2",
@@ -30,12 +29,12 @@ class DeepgramAgent {
     });
 
     this.connection.on(LiveTranscriptionEvents.Open, () => {
-      console.log('Connection opened.');
+      console.log("Connection opened.");
       this.connection.on(LiveTranscriptionEvents.Close, () => {
-        console.log('Connection closed.');
+        console.log("Connection closed.");
         this.isConnectionOpen = false;
       });
-  
+
       this.connection.on(LiveTranscriptionEvents.Transcript, (data) => {
         // console.log('deepgram: ', data.speech_final, data.channel.alternatives[0].transcript)
         // if (data.speech_final == true) {
@@ -48,13 +47,13 @@ class DeepgramAgent {
         //   if (this.temp == null) this.temp = data.channel.alternatives[0].transcript
         //   else this.temp = `${this.temp} ${data.channel.alternatives[0].transcript}`
         // }
-        this.eventEmitter.emit(EVENTS.SPEECH_RECOGNIZED, {'text': data.channel.alternatives[0].transcript})
+        this.eventEmitter.emit(EVENTS.SPEECH_RECOGNIZED, { text: data.channel.alternatives[0].transcript });
       });
-  
+
       this.connection.on(LiveTranscriptionEvents.Metadata, (data) => {
         console.log(data);
       });
-  
+
       this.connection.on(LiveTranscriptionEvents.Error, (err) => {
         console.error(err);
       });
@@ -69,16 +68,13 @@ class DeepgramAgent {
   }
 
   send(buff) {
-    if(this.isConnectionOpen) {
-      this.connection.send(buff)
+    if (this.isConnectionOpen) {
+      this.connection.send(buff);
     }
     if (!this.isConnecting && !this.isConnectionOpen) {
-      this.createConnection()
+      this.createConnection();
     }
   }
 }
 
-module.exports = {
-  DeepgramAgent,
-  EVENTS,
-}
+export default DeepgramAgent;

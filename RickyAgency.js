@@ -1,29 +1,32 @@
-const EventEmitter = require("events");
-const asyncModule = require("async");
-const { DeepgramAgent, EVENTS: DeepgramAgentEvents } = require("./deepgramagent");
-const DeeplTransAgent = require("./DeeplTransAgent");
-const T2SAgent = require("./T2SAgent");
+import EventEmitter from "events";
+import { queue } from "async";
+import DeepgramAgent from "./deepgramagent.js";
+import S2TAgent from "./S2TAgent.js";
+import DeeplTransAgent from "./DeeplTransAgent.js";
+import TranslationAgent from "./TranslateAgent.js";
+import T2SAgent from "./T2SAgent.js";
+import { S2T_EVENTS, RICKYAGENCY_EVENTS, INPUT_STREAM_PORT } from "./helper.js";
 
-const EVENTS = {
-  PROCESS_COMPLETED: "PROCESS_COMPLETED", // a part of speech recognized, translated, new speech generated
-};
+const EVENTS = RICKYAGENCY_EVENTS;
 
 /**
  * Manage interaction between S2T, Translation, T2S services
  * for given SSRC
  */
 class RickyAgency {
-  constructor(ssrc) {
+  constructor(ssrc, port) {
     this.ssrc = ssrc;
+    this.port = port;
     this.eventEmitter = new EventEmitter();
-    this.s2t_agent = new DeepgramAgent();
-    this.t2s_agent = new T2SAgent();
+    this.s2tAgent = port == INPUT_STREAM_PORT ? new DeepgramAgent() : new S2TAgent(); // in case of port 5005, use deepgram, else use google
+    this.googleTranslateAgent = new TranslationAgent();
+    this.t2sAgent = new T2SAgent();
 
-    this.listenerStatic = {}; // lang-num key pair of listners
+    this.listenerStatic = {}; // lang - num key pair of listners
     this.process_queues = {}; // lang - async task queue key pair
 
     // connect events
-    this.s2t_agent.eventEmitter.on(DeepgramAgentEvents.SPEECH_RECOGNIZED, (data) => {
+    this.s2tAgent.eventEmitter.on(S2T_EVENTS.SPEECH_RECOGNIZED, (data) => {
       // add a task to all existing queues for different lang
       for (const lang in this.process_queues) {
         console.log("lang: ", lang);
@@ -31,7 +34,7 @@ class RickyAgency {
         // Add new task to queue
         this.process_queues[lang].t2t.push({ text: data.text }, (err, obj) => {
           if (err == null) {
-            console.log("Translated completed");
+            console.log("Translation completed");
           } else {
             console.log("t2t", err);
           }
@@ -46,33 +49,38 @@ class RickyAgency {
     } else {
       this.listenerStatic[listners_lang] = 0;
       this.process_queues[listners_lang] = {};
-      this.process_queues[listners_lang].t2t = asyncModule.queue((task, t2tCompleted) => {
+      this.process_queues[listners_lang].t2t = queue((task, t2tCompleted) => {
         try {
           let s = task.text.trim();
           if (s == "") {
             throw new Error("Empty String");
           }
 
-          DeeplTransAgent.translateTo(s, listners_lang).then((res) => {
+          // if port is 5005, use deepl, else use google
+          const translation =
+            this.port == INPUT_STREAM_PORT
+              ? DeeplTransAgent.translateTo(s, listners_lang)
+              : this.googleTranslateAgent.translateText(s, listners_lang);
+
+          translation.then((res) => {
             if (res.statusCode !== 200) {
               throw new Error("Trans failed");
             }
 
-            t2tCompleted(null, { translatedTxt: res.body.translations[0].text });
+            const text = this.port == INPUT_STREAM_PORT ? res.body.translations[0].text : res.body.translations[0];
 
-            this.process_queues[listners_lang].t2s.push(
-              { original: s, text: res.body.translations[0].text },
-              (err, obj) => {
-                if (err == null) {
-                  console.log("original: ", obj.original);
-                  console.log("trans: ", obj.text);
+            t2tCompleted(null, { translatedTxt: text });
 
-                  this.eventEmitter.emit(EVENTS.PROCESS_COMPLETED, listners_lang, obj);
-                } else {
-                  console.log("t2s ", err);
-                }
+            this.process_queues[listners_lang].t2s.push({ original: s, text: text }, (err, obj) => {
+              if (err == null) {
+                console.log("original: ", obj.original);
+                console.log("trans: ", obj.text);
+
+                this.eventEmitter.emit(EVENTS.PROCESS_COMPLETED, listners_lang, obj);
+              } else {
+                console.log("t2s ", err);
               }
-            );
+            });
           });
         } catch (error) {
           console.log("catch worked");
@@ -80,13 +88,13 @@ class RickyAgency {
         }
       }, 1);
 
-      this.process_queues[listners_lang].t2s = asyncModule.queue((task, t2sCompleted) => {
+      this.process_queues[listners_lang].t2s = queue((task, t2sCompleted) => {
         try {
           if (task.text == "") {
             throw new Error("Empty String");
           }
 
-          this.t2s_agent
+          this.t2sAgent
             .generateAudio(task.text, listners_lang)
             .then((res) => {
               if (!res[0].audioContent) {
@@ -126,9 +134,9 @@ class RickyAgency {
   sendSpeechData(buff) {
     // check if there is any listener
     if (this.hasAnyListener()) {
-      this.s2t_agent.send(buff);
+      this.s2tAgent.send(buff);
     }
-    // console.log('s2t_state: ', this.s2t_agent.isConnectionOpen)
+    // console.log('s2t_state: ', this.s2tAgent.isConnectionOpen)
   }
 
   hasAnyListener() {
@@ -136,7 +144,4 @@ class RickyAgency {
   }
 }
 
-module.exports = {
-  RickyAgency,
-  EVENTS,
-};
+export default RickyAgency;
