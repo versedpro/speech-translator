@@ -1,5 +1,5 @@
 import { TextToSpeechClient } from "@google-cloud/text-to-speech";
-import { GOOGLE_CREDENTIALS } from "./helper.js";
+// import { GOOGLE_CREDENTIALS } from "./helper.js";
 
 class T2SAgent {
   constructor(target_lang = "es") {

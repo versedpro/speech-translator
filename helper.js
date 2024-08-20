@@ -1,10 +1,10 @@
 import { config } from "dotenv";
 config();
 import { createRequire } from "module";
-const GOOGLE_CRENDENTIALS = createRequire(import.meta.url)("./google_service_credential.json");
+// const GOOGLE_CRENDENTIALS = createRequire(import.meta.url)("./google_service_credential.json");
 
 // import GOOGLE_CRENDENTIALS from "./google_service_credential.json" assert { type: "json" };
-export const GOOGLE_CREDENTIALS = GOOGLE_CRENDENTIALS;
+// export const GOOGLE_CREDENTIALS = GOOGLE_CRENDENTIALS;
 
 export const DEEPL_API_KEY = process.env.DEEPL_API_KEY;
 export const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY;

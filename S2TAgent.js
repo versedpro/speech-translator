@@ -1,6 +1,6 @@
 import { SpeechClient } from "@google-cloud/speech";
 import EventEmitter from "events";
-import { GOOGLE_CREDENTIALS } from "./helper.js";
+// import { GOOGLE_CREDENTIALS } from "./helper.js";
 
 const EVENTS = {
   SPEECH_RECOGNIZED: "SPEECH_RECOGNIZED",

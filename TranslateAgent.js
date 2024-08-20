@@ -1,5 +1,5 @@
 import gooogleTranslate from "@google-cloud/translate";
-import { GOOGLE_CREDENTIALS } from "./helper.js";
+// import { GOOGLE_CREDENTIALS } from "./helper.js";
 
 class TranslationAgent {
   constructor() {
